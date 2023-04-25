@@ -6,8 +6,11 @@ const { requiresAuth } = require('express-openid-connect');
 const dotenv = require('dotenv');
 dotenv.config();
 
+const DEBUG = true;
+
 const helmet = require("helmet");
 const db = require('./db/db_pool');
+const path = require("path");
 const app = express();
 const port = process.env.PORT || 8080;
 
@@ -24,9 +27,8 @@ app.use(helmet({
         scriptSrc: ["'self'", 'cdnjs.cloudflare.com'],
       }
     }
-  })); 
+})); 
   
-
 const config = {
     authRequired: false,
     auth0Logout: true,
@@ -55,6 +57,7 @@ app.use(express.static(__dirname + '/public'));
 app.use((req, res, next) => {
     res.locals.isLoggedIn = req.oidc.isAuthenticated();
     res.locals.user = req.oidc.user;
+    console.log(req.oidc.user)
     next();
 })
 
@@ -72,6 +75,66 @@ app.get( "/", ( req, res ) => {
     res.render('index');
 } );
 
+const read_categories_all_sql = `
+    SELECT
+        name
+    FROM 
+        categories
+    WHERE
+        userId = ?
+`
+
+app.get( "/categories", requiresAuth(), ( req, res ) => {
+    db.execute(read_categories_all_sql, [req.oidc.user.sid], (error, results) => {
+        if (DEBUG) console.log(error ? error : results);
+        if (error)
+            res.status(500).send(error); //Internal Server Error
+        else {
+            res.render('categories', { inventory : results });
+        }
+    });
+} );
+
+const delete_categories_sql = `
+    DELETE 
+    FROM
+        categories
+    WHERE
+        name = ?
+    AND
+        userId = ?
+`
+
+app.get("/categories/item/:name/delete", requiresAuth(), ( req, res ) => {
+    db.execute(delete_categories_sql, [req.params.name, req.oidc.user.sid], (error, results) => {
+        if (DEBUG) console.log(error ? error : results);
+        if (error)
+            res.status(500).send(error); //Internal Server Error
+        else {
+            res.redirect("/categories");
+        }
+    });
+})
+
+// define a route for item CREATE
+const create_categories_sql = `
+    INSERT INTO categories
+        (name, userId)
+    VALUES
+        (?, ?)
+`
+app.post("/categories", requiresAuth(), ( req, res ) => {
+    db.execute(create_categories_sql, [req.body.name, req.oidc.user.sid], (error, results) => {
+        if (DEBUG) console.log(error ? error : results);
+        if (error)
+            res.status(500).send(error); //Internal Server Error
+        else {
+            //results.insertId has the primary key (id) of the newly inserted element.
+            res.redirect(`/categories`);
+        }
+    });
+})
+
 // define a route for the stuff inventory page
 const read_stuff_all_sql = `
     SELECT 
@@ -79,40 +142,61 @@ const read_stuff_all_sql = `
     FROM
         stuff
     WHERE 
-        userid = ?
+        userId = ?
 `
 app.get( "/stuff", requiresAuth(), ( req, res ) => {
-    db.execute(read_stuff_all_sql, [req.oidc.user.email], (error, results) => {
+    db.execute(read_stuff_all_sql, [req.oidc.user.sid], (error, results) => {
+        if (DEBUG) console.log(error ? error : results);
         if (error)
             res.status(500).send(error); //Internal Server Error
         else {
-            res.render('stuff', { inventory : results });
+            db.execute(read_categories_all_sql, [req.oidc.user.sid], (error2, results2) => {
+                if (DEBUG) console.log(error2 ? error2 : results);
+                if (error2)
+                    res.status(500).send(error2); //Internal Server Error
+                else {
+                    let data = {stuffList: results, categoriesList: results2};
+                    res.render('stuff', data); 
+                }
+            });
         }
     });
-} );
+});
 
 // define a route for the item detail page
 const read_stuff_item_sql = `
     SELECT 
-        id, item, quantity, description 
+        id, item, quantity, description, categoryName 
     FROM
         stuff
     WHERE
         id = ?
     AND
-        userid = ?
+        userId = ?
 `
+
 app.get( "/stuff/item/:id", requiresAuth(), ( req, res ) => {
-    db.execute(read_stuff_item_sql, [req.params.id, req.oidc.user.email], (error, results) => {
+    db.execute(read_categories_all_sql, [req.oidc.user.sid], (error, results) => {
+        if (DEBUG) console.log(error ? error : results);
         if (error)
             res.status(500).send(error); //Internal Server Error
         else if (results.length == 0)
             res.status(404).send(`No item found with id = "${req.params.id}"` ); // NOT FOUND
         else {
-            let data = results[0]; // results is still an array
-            // data's object structure: 
+            db.execute(read_stuff_item_sql, [req.params.id, req.oidc.user.sid], (error2, results2) => {
+                if (DEBUG) console.log(error2 ? error2 : results2);
+                if (error2)
+                    res.status(500).send(error2); //Internal Server Error
+                else {
+                    let data = {categoriesList: results, stuffList: results2};
+                    res.render('item', data); 
+                }
+            });
+
+            //let stuffList = results[0]; // results is still an array
+            // stuffList's object structure: 
             //  { id: ____, item: ___ , quantity:___ , description: ____ }
-            res.render('item', data);
+            //res.render('/stuff/item/', stuffList);
         }
     });
 });
@@ -125,10 +209,11 @@ const delete_item_sql = `
     WHERE
         id = ?
     AND
-        userid = ?
+        userId = ?
 `
 app.get("/stuff/item/:id/delete", requiresAuth(), ( req, res ) => {
-    db.execute(delete_item_sql, [req.params.id, req.oidc.user.email], (error, results) => {
+    db.execute(delete_item_sql, [req.params.id, req.oidc.user.sid], (error, results) => {
+        if (DEBUG) console.log(error ? error : results);
         if (error)
             res.status(500).send(error); //Internal Server Error
         else {
@@ -144,31 +229,37 @@ const update_item_sql = `
     SET
         item = ?,
         quantity = ?,
-        description = ?
+        description = ?,
+        categoryName = ?
     WHERE
         id = ?
     AND
-        userid = ?
+        userId = ?
 `
 app.post("/stuff/item/:id", requiresAuth(), ( req, res ) => {
-    db.execute(update_item_sql, [req.body.name, req.body.quantity, req.body.description, req.params.id, req.oidc.user.email], (error, results) => {
-        if (error)
-            res.status(500).send(error); //Internal Server Error
-        else {
-            res.redirect(`/stuff/item/${req.params.id}`);
-        }
-    });
+    
+            db.execute(update_item_sql, [req.body.name, req.body.quantity, req.body.description, req.body.categoryName, req.params.id, req.oidc.user.sid], (error2, results2) => {
+                if (DEBUG) console.log(error2 ? error2 : results2);
+                if (error2)
+                    res.status(500).send(error2); //Internal Server Error
+                else {
+                    res.redirect(`/stuff/item/${req.params.id}`);
+                }
+            });
+        
 })
 
 // define a route for item CREATE
 const create_item_sql = `
     INSERT INTO stuff
-        (item, quantity, userid)
+        (item, quantity, categoryName, userId)
     VALUES
-        (?, ?, ?)
+        (?, ?, ?, ?)
 `
+
 app.post("/stuff", requiresAuth(), ( req, res ) => {
-    db.execute(create_item_sql, [req.body.name, req.body.quantity, req.oidc.user.email], (error, results) => {
+    db.execute(create_item_sql, [req.body.name, req.body.quantity, req.body.category, req.oidc.user.sid], (error, results) => {
+        if (DEBUG) console.log(error ? error : results);
         if (error)
             res.status(500).send(error); //Internal Server Error
         else {

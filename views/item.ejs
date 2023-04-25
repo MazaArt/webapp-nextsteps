@@ -23,6 +23,7 @@
                 <a href="/" class="brand-logo">Stuff Manager</a>
                 <a href="#" data-target="mobile-nav" class="sidenav-trigger"><i class="material-icons">menu</i></a>
                 <ul id="desktop-nav" class="right hide-on-med-and-down">
+                    <li><a href="/categories"><i class="material-icons left">dataset</i>Categories</a></li>
                     <li><a href="/"><i class="material-icons left">home</i>Home</a></li>
                     <li><a href="/stuff"><i class="material-icons left">list</i>Inventory</a></li>
                     <% if (isLoggedIn) { %>
@@ -55,15 +56,19 @@
             <table>
                 <tr>
                     <th>Item:</th>
-                    <td><%= item %></td>
+                    <td><%= stuffList[0].item %></td>
                 </tr>
                 <tr>
                     <th>Quantity:</th>
-                    <td><%= quantity %></td>
+                    <td><%= stuffList[0].quantity %></td>
                 </tr>
                 <tr>
                     <th>Description:</th>
-                    <td><%= description %></td>
+                    <td><%= stuffList[0].description %></td>
+                </tr>
+                <tr>
+                    <th>Category:</th>
+                    <td><%= stuffList[0].categoryName %></td>
                 </tr>
             </table>
         </div>
@@ -72,7 +77,7 @@
             <a class="btn-large waves-effect waves-light orange left modal-trigger" href="#stuffEdit">
                 <i class="material-icons right">edit</i>Edit
             </a>
-            <a class="btn-large waves-effect waves-light red right"  href="/stuff/item/<%= id %>/delete" %>>
+            <a class="btn-large waves-effect waves-light red right"  href="/stuff/item/<%= stuffList[0].id %>/delete" %>>
                 <i class="material-icons right">delete</i>Delete
             </a>
         </div>
@@ -83,27 +88,37 @@
             <div class="modal-content">
 
                 <h2>Edit item:</h2>
-                <form method="post" action="/stuff/item/<%= id%>"> <!-- default action is the page's URL --> 
+                <form method="post" action="/stuff/item/<%= stuffList[0].id%>"> <!-- default action is the page's URL --> 
                     <div class="row">
                         <div class="input-field col s6">
                             <label for="nameInput">Item Name:</label>
-                            <input type="text" name="name" id="nameInput" class="validate" data-length="32" value="<%= item%>" required>
+                            <input type="text" name="name" id="nameInput" class="validate" data-length="32" value="<%= stuffList[0].item%>" required>
                         </div>
                         <div class="input-field col s6">
                             <label for="quantityInput">Item Quantity:</label>
-                            <input type="number" name="quantity" id="quantityInput" value=<%= quantity%> required>
+                            <input type="number" name="quantity" id="quantityInput" value=<%= stuffList[0].quantity%> required>
                         </div>
                     </div>
                     <div class="row">
                         <div class="input-field col s12">
                             <label for="descriptionInput">Item Description:</label>
-                            <input type="text" name="description" id="descriptionInput" data-length="100" value="<%= description%>">
+                            <input type="text" name="description" id="descriptionInput" data-length="100" value="<%= stuffList[0].description%>">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="input-field col s6">
+                            <select id="categoryInput" name="categoryName" required>
+                                <option value="<%= stuffList[0].categoryName %>" disabled>Choose your subject</option>
+                                <% for (let i = 0; i < categoriesList.length; i++) { %>
+                                    <option value=<%=categoriesList[i].name %>><%= categoriesList[i].name %></option>
+                                <% } %>
+                            </select>
+                            <label for="categoryInput">Category:</label>
                         </div>
                     </div>
                     <div class="modal-footer">
                         <button class="btn waves-effect waves-light " type="submit"><i
                                 class="material-icons right">send</i>Submit</button>
-
                         <a href="#!" class="modal-close waves-effect waves-green btn-flat">Never Mind</a>
                     </div>
                 </form>

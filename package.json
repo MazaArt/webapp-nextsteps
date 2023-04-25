@@ -4,9 +4,10 @@
   "description": "This tutorial follows after:\r [Part 01: Protyping our web pages](https://github.com/atcs-wang/inventory-webapp-01-static-prototypes)",
   "main": "app.js",
   "scripts": {
-    "start": "node app.js",
+    "start": "node app.js", 
+    "devstart": "nodemon -e js,ejs,sql,env app.js", 
     "initdb": "node db/db_init.js"
-  },
+   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/atcs-wang/inventory-webapp-02-app-server-basics.git"
@@ -25,5 +26,8 @@
     "helmet": "^6.0.1",
     "morgan": "^1.10.0",
     "mysql2": "^2.3.3"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.22"
   }
 }
